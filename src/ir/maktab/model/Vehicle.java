@@ -1,5 +1,7 @@
 package ir.maktab.model;
 
+import ir.maktab.enums.VehicleType;
+
 public class Vehicle extends General{
 
     protected String number;

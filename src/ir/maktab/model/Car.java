@@ -1,13 +1,11 @@
 package ir.maktab.model;
 
 import ir.maktab.dao.VehicleDao;
+import ir.maktab.enums.VehicleType;
 
 import java.sql.SQLException;
 
 public class Car extends Vehicle{
-
-    public Car() {
-    }
 
     public Car(String number, String model, String color) {
         super(number, model, color);

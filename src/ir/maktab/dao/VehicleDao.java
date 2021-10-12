@@ -1,7 +1,7 @@
 package ir.maktab.dao;
 
 import ir.maktab.model.Vehicle;
-import ir.maktab.model.VehicleType;
+import ir.maktab.enums.VehicleType;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -18,7 +18,7 @@ public class VehicleDao extends GeneralDao {
             Vehicle vehicle = (Vehicle) object;
             String statement = String.format("Insert Into Tb_Vehicle(vehicle_number, model, color, vehicle_type) " +
                     "values('%s', '%s', '%s', '%s')", vehicle.getNumber(), vehicle.getModel(), vehicle.getColor(), vehicle.getType());
-            return executeUpdate(statement);
+            return executeCreate(statement);
         } catch (ClassCastException ex) {
             System.out.println("The Object Is Not Driver.");
         }
@@ -35,16 +35,15 @@ public class VehicleDao extends GeneralDao {
     }
 
     @Override
-    public Object[] findAll() {
-        return new Object[0];
-    }
-
-    @Override
     public Vehicle fillData(ResultSet resultSet) throws SQLException {
         Vehicle vehicle = new Vehicle();
-        int vehicleId = resultSet.getInt("vehicle_id");
-        if (vehicleId == 0)
+        int vehicleId;
+        try {
+            vehicleId = resultSet.getInt("vehicle_id");
+        }
+        catch (SQLException ex) {
             vehicleId = resultSet.getInt("id");
+        }
         vehicle.setId(vehicleId);
         vehicle.setNumber(resultSet.getString("vehicle_number"));
         vehicle.setModel(resultSet.getString("model"));

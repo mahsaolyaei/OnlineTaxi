@@ -1,9 +1,11 @@
 package ir.maktab.dao;
 
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public class GeneralDao {
-    private Connection connection;
+    protected Connection connection;
 
     public GeneralDao() throws SQLException, ClassNotFoundException {
         Class.forName("com.mysql.cj.jdbc.Driver");
@@ -18,6 +20,11 @@ public class GeneralDao {
 
     public int executeUpdate(String query) throws SQLException {
         PreparedStatement statement = connection.prepareStatement(query);
+        return statement.executeUpdate(query);
+    }
+
+    public int executeCreate(String query) throws SQLException {
+        PreparedStatement statement = connection.prepareStatement(query);
         int result = statement.executeUpdate(query, Statement.RETURN_GENERATED_KEYS);
         if (result == 0)
             return result;
@@ -26,7 +33,7 @@ public class GeneralDao {
             return generatedKeys.getInt(1);
         }
         else {
-            System.out.println("Creating user failed, no ID obtained.");
+            System.out.println("no ID obtained.");
             return 0;
         }
     }
@@ -48,8 +55,8 @@ public class GeneralDao {
         return null;
     }
 
-    public Object[] findAll() throws SQLException, ClassNotFoundException {
-        return new Object[0];
+    public List findAll() throws SQLException, ClassNotFoundException {
+        return new ArrayList<>();
     }
 
     protected Object fillData(ResultSet resultSet) throws SQLException, ClassNotFoundException {

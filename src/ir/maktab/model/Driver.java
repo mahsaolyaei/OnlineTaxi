@@ -1,65 +1,97 @@
 package ir.maktab.model;
 
 import ir.maktab.dao.DriverDao;
+import ir.maktab.dao.TransactionDao;
+import ir.maktab.enums.*;
 
+import java.math.BigDecimal;
 import java.sql.SQLException;
+import java.util.List;
 
-public class Driver extends General{
+public class Driver extends General {
 
+    private Person person;
     private String userName;
-    private String firstName;
-    private String lastName;
-    private String nationCode;
+    private UserStatus status;
+    private BigDecimal balance;
     private Vehicle vehicle;
+    private Location location;
 
-    public Driver(String userName, String firstName, String lastName, String nationCode, Vehicle vehicle) {
+    public Driver(Person person, String userName, Vehicle vehicle, Location location) {
         super();
+        this.person = person;
         this.userName = userName;
-        this.firstName = firstName;
-        this.lastName = lastName;
-        this.nationCode = nationCode;
         this.vehicle = vehicle;
+        this.location = location;
+        this.status = UserStatus.WAITING;
+        this.balance = new BigDecimal(0);
     }
 
     public Driver() {
     }
 
-    public static int add(String userName, String firstName, String lastName, String nationCode, Vehicle vehicle) throws SQLException, ClassNotFoundException {
-        Driver driver = new Driver(userName, firstName, lastName, nationCode, vehicle);
+    public static int add(Person person, String userName, Vehicle vehicle, Location location) throws SQLException, ClassNotFoundException {
+        Driver driver = new Driver(person, userName, vehicle, location);
         return (new DriverDao()).create(driver);
     }
 
     public static boolean checkUserNameExists(String userName) throws SQLException, ClassNotFoundException {
         Driver driver = (new DriverDao()).findByUserName(userName);
-        return driver == null? true: false;
+        return driver == null;
     }
 
     public static void showDriversList() throws SQLException, ClassNotFoundException {
-        Driver[] drivers = (new DriverDao()).findAll();
-        if (drivers.length == 0)
-            System.out.println("The Drivers List Is Empty.");
-        for (int i = 0; i < drivers.length; i++) {
-            System.out.println(drivers[i]);
+        List<Driver> driverList = (new DriverDao()).findAll();
+        if (driverList.size() == 0)
+            System.out.println("The Passengers List Is Empty.");
+        for (Driver driver : driverList) {
+            System.out.println(driver);
         }
+    }
+
+    public static Driver findNearestWaitingDriver(Location origin) throws SQLException, ClassNotFoundException {
+        List<Driver> driverList = (new DriverDao()).findAllWaiting();
+        Driver nearestDriver = null;
+        Double minimumDistance = null;
+        for (Driver driver : driverList) {
+            Double distance = origin.calculateDistance(driver.getLocation());
+            if (nearestDriver == null || distance.compareTo(minimumDistance) < 0) {
+                minimumDistance = distance;
+                nearestDriver = driver;
+            }
+        }
+        return nearestDriver;
+    }
+
+    public void finishTrip(Trip trip) throws SQLException, ClassNotFoundException {
+        this.status = UserStatus.WAITING;
+        this.location = trip.getDestination();
+        if (trip.getPaymentType().equals(PaymentType.BALANCE)) {
+            BigDecimal amount = trip.getAmount();
+            Transaction transaction = new Transaction(amount, TransactionType.INCREASE, id, ObjectType.DRIVER);
+            (new TransactionDao()).create(transaction);
+            this.balance = balance.add(trip.getAmount());
+        }
+        (new DriverDao()).changeTripFinishingFields(this);
     }
 
     @Override
     public String toString() {
         return "Driver{" +
-                "userName='" + userName + '\'' +
-                ", firstName='" + firstName + '\'' +
-                ", lastName='" + lastName + '\'' +
-                ", nationCode='" + nationCode + '\'' +
-                ", vehicle=" + vehicle.toString() +
+                "person=" + person +
+                ", status=" + status +
+                ", balance=" + getBalance() +
+                ", vehicle=" + vehicle +
+                ", location=" + location +
                 '}';
     }
 
-    public int getId() {
-        return id;
+    public Person getPerson() {
+        return person;
     }
 
-    public void setId(int id) {
-        this.id = id;
+    public void setPerson(Person person) {
+        this.person = person;
     }
 
     public String getUserName() {
@@ -70,28 +102,20 @@ public class Driver extends General{
         this.userName = userName;
     }
 
-    public String getFirstName() {
-        return firstName;
+    public UserStatus getStatus() {
+        return status;
     }
 
-    public void setFirstName(String firstName) {
-        this.firstName = firstName;
+    public void setStatus(UserStatus status) {
+        this.status = status;
     }
 
-    public String getLastName() {
-        return lastName;
+    public BigDecimal getBalance() {
+        return balance;
     }
 
-    public void setLastName(String lastName) {
-        this.lastName = lastName;
-    }
-
-    public String getNationCode() {
-        return nationCode;
-    }
-
-    public void setNationCode(String nationCode) {
-        this.nationCode = nationCode;
+    public void setBalance(BigDecimal balance) {
+        this.balance = balance;
     }
 
     public Vehicle getVehicle() {
@@ -104,4 +128,11 @@ public class Driver extends General{
         this.vehicle = vehicle;
     }
 
+    public Location getLocation() {
+        return location;
+    }
+
+    public void setLocation(Location location) {
+        this.location = location;
+    }
 }

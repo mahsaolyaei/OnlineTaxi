@@ -1,16 +1,15 @@
 package ir.maktab;
 
-import ir.maktab.model.Car;
-import ir.maktab.model.Driver;
-import ir.maktab.model.Passenger;
+import ir.maktab.dao.*;
+import ir.maktab.enums.*;
+import ir.maktab.exceptions.TripException;
+import ir.maktab.model.*;
 
 import java.sql.SQLException;
-import java.util.InputMismatchException;
-import java.util.Scanner;
-import java.util.StringTokenizer;
+import java.util.*;
 
 public class Main {
-    private static Scanner SCANNER = new Scanner(System.in);
+    private static final Scanner SCANNER = new Scanner(System.in);
 
     public static void main(String[] args) throws SQLException, ClassNotFoundException {
         do {
@@ -29,11 +28,11 @@ public class Main {
             else if ("2".equals(inputStr))
                 goToPassengersGroupAdd();
             else if ("3".equals(inputStr))
-                goToRegisterMenu("DRIVER");
+                goToLoginMenu("DRIVER");
             else if ("4".equals(inputStr))
-                goToRegisterMenu("PASSENGER");
+                goToLoginMenu("PASSENGER");
             else if ("5".equals(inputStr))
-                System.out.println("There Is No Ongoing Travel.");
+                Trip.showOnGoingTrips();
             else if ("6".equals(inputStr))
                 Driver.showDriversList();
             else if ("7".equals(inputStr))
@@ -45,22 +44,71 @@ public class Main {
         } while (true);
     }
 
-    private static void goToRegisterMenu(String type) throws SQLException, ClassNotFoundException {
+    private static void goToLoginMenu(String type) throws SQLException, ClassNotFoundException {
         System.out.println("Please Enter Your UserName: ");
         String userName = SCANNER.next();
-        if (!Driver.checkUserNameExists(userName)) {
-            System.out.printf("The UserName [%s] Already Exists.", userName);
-            return;
+
+        if (type.equalsIgnoreCase("DRIVER")) {
+            Driver driver = (new DriverDao()).findByUserName(userName.trim());
+            if (driver != null)
+                goToDriverMenu(driver);
+            else
+                goToSignupMenu(type, userName);
         }
+        else if (type.equalsIgnoreCase("PASSENGER")) {
+            Passenger passenger = (new PassengerDao()).findByUserName(userName.trim());
+            if (passenger != null)
+                goToPassengerMenu(passenger);
+            else
+                goToSignupMenu(type, userName);
+        }
+
+    }
+
+    private static void goToPassengerMenu(Passenger passenger) throws SQLException, ClassNotFoundException {
+        do {
+            if (passenger.getStatus().equals(UserStatus.TRAVELING)) {
+                System.out.println("***You Are In A Travel***\n" +
+                        "1) Exit\n");
+                String inputStr = SCANNER.next();
+                if ("1".equals(inputStr))
+                    break;
+                else
+                    System.out.println("[ERROR] You Entered Invalid Number.");
+            }
+            else if (!passenger.getStatus().equals(UserStatus.WAITING)) {
+                System.out.println("***You Are Not Waiting For A Travel***\n" +
+                        "1) Travel Request (Pay By Cash)\n" +
+                        "2) Travel Request (Pay By Account Balance)\n" +
+                        "3) Increase Account Balance\n" +
+                        "4) Exit\n");
+                String inputStr = SCANNER.next();
+                if ("1".equals(inputStr))
+                    MainHelper.requestTrip(passenger, PaymentType.CASH);
+                else if ("2".equals(inputStr))
+                    MainHelper.requestTrip(passenger, PaymentType.BALANCE);
+                else if ("3".equals(inputStr))
+                    MainHelper.increaseBalance(passenger);
+                else if ("4".equals(inputStr))
+                    break;
+                else
+                    System.out.println("[ERROR] You Entered Invalid Number.");
+
+            }
+        }
+        while(true);
+    }
+
+    private static void goToSignupMenu(String type, String userName) {
         System.out.println("\n******\n" +
-            "1) Register\n" +
-            "2) Exit\n");
+                "1) Register\n" +
+                "2) Exit\n");
         String inputStr = SCANNER.next();
         if ("1".equals(inputStr)) {
             if (type.equalsIgnoreCase("DRIVER"))
-                addDrivers(1);
+                MainHelper.addDrivers(1, userName);
             else if (type.equalsIgnoreCase("PASSENGER"))
-                addPassengers(1);
+                MainHelper.addPassengers(1, userName);
         }
         else if ("2".equals(inputStr))
             return;
@@ -68,9 +116,44 @@ public class Main {
             System.out.println("[ERROR] You Entered Invalid Number.");
     }
 
+    private static void goToDriverMenu(Driver driver) throws SQLException, ClassNotFoundException {
+        do {
+            if (driver.getStatus().equals(UserStatus.WAITING)) {
+                System.out.println("***You Are Waiting For A Travel***\n" +
+                        "1) Exit\n");
+                String inputStr = SCANNER.next();
+                if ("1".equals(inputStr))
+                    break;
+                else
+                    System.out.println("[ERROR] You Entered Invalid Number.");
+            } else if (driver.getStatus().equals(UserStatus.TRAVELING)) {
+                try {
+                    Trip trip = (new TripDao()).findOnGoingTripByDriver(driver);
+                    System.out.println("***You Are In A Travel***\n" +
+                            (trip.getPaymentType().equals(PaymentType.CASH) && !trip.isPaymentConfirmed()? "1) Confirm Cash Receipt\n": "") +
+                            "2) Travel Finished\n" +
+                            "3) Exit\n");
+                    String inputStr = SCANNER.next();
+                    if ("1".equals(inputStr))
+                        trip.confirmCashReceipt();
+                    else if ("2".equals(inputStr)) {
+                        MainHelper.finishTrip(trip);
+                        driver.setStatus(UserStatus.WAITING);
+                    }
+                    else if ("3".equals(inputStr))
+                        break;
+                    else
+                        System.out.println("[ERROR] You Entered Invalid Number.");
+                } catch (TripException ex) {
+                    System.out.println(ex.getMessage());
+                }
+            }
+        } while (true);
+    }
+
     private static void goToPassengersGroupAdd() {
         System.out.println("Please Enter The Count Of Passengers Do You Want To Add: ");
-        int count = 0;
+        int count;
         try {
             count = SCANNER.nextInt();
         }
@@ -78,42 +161,12 @@ public class Main {
             System.out.println("You Must Enter A Number.");
             return;
         }
-        addPassengers(count);
-    }
-
-    private static void addPassengers(int count) {
-        try {
-            for (int i = 0; i < count; i++) {
-                System.out.println("\nPlease Enter Passenger Info In This Order: \n" +
-                        "[UserName, FirstName, LastName, NationCode]\n");
-                if (i == 0)
-                    SCANNER.nextLine();
-                String inputStr = SCANNER.nextLine();
-                StringTokenizer inputTokenizer = new StringTokenizer(inputStr, ",");
-                String userName = inputTokenizer.hasMoreTokens()? inputTokenizer.nextToken(): null;
-                String firstName = inputTokenizer.hasMoreTokens()? inputTokenizer.nextToken(): null;
-                String lastName = inputTokenizer.hasMoreTokens()? inputTokenizer.nextToken(): null;
-                String nationCode = inputTokenizer.hasMoreTokens()? inputTokenizer.nextToken(): null;
-                if (userName == null || firstName == null || lastName == null || nationCode == null) {
-                    System.out.println("You Entered Passenger Info In Wrong Format.");
-                    continue;
-                }
-                userName = userName.trim();
-                if (!Passenger.checkUserNameExists(userName)) {
-                    System.out.printf("The UserName [%s] Already Exists.\n", userName);
-                    continue;
-                }
-                Passenger.add(userName, firstName.trim(), lastName.trim(), nationCode.trim());
-                System.out.printf("The Passenger With UserName [%s] Added.\n", userName);
-            }
-        } catch (Exception ex) {
-            System.out.println("Unexpected Error Occurred");
-        }
+        MainHelper.addPassengers(count, null);
     }
 
     private static void goToDriversGroupAdd() {
         System.out.println("Please Enter The Count Of Drivers Do You Want To Add: ");
-        int count = 0;
+        int count;
         try {
             count = SCANNER.nextInt();
         }
@@ -121,48 +174,7 @@ public class Main {
             System.out.println("You Must Enter A Number.");
             return;
         }
-        addDrivers(count);
+        MainHelper.addDrivers(count, null);
 
-    }
-
-    private static void addDrivers(int count) {
-        try {
-            for (int i = 0; i < count; i++) {
-                System.out.println("\nPlease Enter Driver Info In This Order: \n" +
-                        "[UserName, FirstName, LastName, NationCode]\n");
-                if (i == 0)
-                    SCANNER.nextLine();
-                String inputStr = SCANNER.nextLine();
-                StringTokenizer inputTokenizer = new StringTokenizer(inputStr, ",");
-                String userName = inputTokenizer.hasMoreTokens()? inputTokenizer.nextToken(): null;
-                String firstName = inputTokenizer.hasMoreTokens()? inputTokenizer.nextToken(): null;
-                String lastName = inputTokenizer.hasMoreTokens()? inputTokenizer.nextToken(): null;
-                String nationCode = inputTokenizer.hasMoreTokens()? inputTokenizer.nextToken(): null;
-                if (userName == null || firstName == null || lastName == null || nationCode == null) {
-                    System.out.println("You Entered Driver Info In Wrong Format.");
-                    return;
-                }
-                userName = userName.trim();
-                if (!Driver.checkUserNameExists(userName)) {
-                    System.out.printf("The UserName [%s] Already Exists.\n", userName);
-                }
-                System.out.println("Please Enter Driver's Car Info In This Order: \n" +
-                        "[CarNumber, Model, Color]\n");
-                inputStr = SCANNER.nextLine();
-                inputTokenizer = new StringTokenizer(inputStr, ",");
-                String number = inputTokenizer.hasMoreTokens()? inputTokenizer.nextToken(): null;
-                String model = inputTokenizer.hasMoreTokens()? inputTokenizer.nextToken(): null;
-                String color = inputTokenizer.hasMoreTokens()? inputTokenizer.nextToken(): null;
-                if (number == null || model == null || color == null) {
-                    System.out.println("You Entered Car Info In Wrong Format.");
-                    return;
-                }
-                Car car = Car.add(number.trim(), model.trim(), color.trim());
-                Driver.add(userName, firstName.trim(), lastName.trim(), nationCode.trim(), car);
-                System.out.printf("The Driver With UserName [%s] Added.\n", userName);
-            }
-        } catch (Exception ex) {
-            System.out.println("Unexpected Error Occurred");
-        }
     }
 }
